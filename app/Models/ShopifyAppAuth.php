@@ -10,8 +10,8 @@ use App\Models\ShopifyApi;
 
 class ShopifyAppAuth extends Model
 {
-    public function __construct(ShopifyApi $shopifyApi){
-      $this->config = $shopifyApi->shopifyConfig();
+    public function __construct(){
+      $this->config = ShopifyApi::shopifyConfig();
     }
 
     /*
@@ -19,7 +19,7 @@ class ShopifyAppAuth extends Model
      *
      * @return String url to install app
      */
-    public function installUrl()
+    public function authUrl()
     {
       //Check we have what we need
       if(!Input::get('shop')){
@@ -28,7 +28,8 @@ class ShopifyAppAuth extends Model
       $this->shopName = Input::get('shop');
       $baseURL = "https://{$this->shopName}/admin/oauth/authorize";
 
-      MerchantConfig::create(['shop_name' => $this->shopName]);
+      $merchant = MerchantConfig::firstOrCreate(['shop_name' => $this->shopName]);
+      $merchant->save();
 
       // Build Url and Return
       $_partialUrl = [
@@ -130,9 +131,13 @@ class ShopifyAppAuth extends Model
       //Add Access token to DB
       MerchantConfig::where('active', 1)
           ->where('shop_name', Input::get('shop'))
-          ->update(['access_token' => $access_token]);
+          ->update([
+            'access_token' => $access_token,
+            'install_success' => 1
+          ]);
 
       \Session::put('access_token', $access_token);
+      \Session::put('shop', Input::get('shop'));
 
       return true;
     }
@@ -160,7 +165,7 @@ class ShopifyAppAuth extends Model
      * @return null
      */
     private function checkHmac(){
-      $shopifyApi = new ShopifyApi;
+      $this->verifyHmac();
     }
 
     /*
@@ -190,8 +195,7 @@ class ShopifyAppAuth extends Model
           'Content-Type' => 'application/json',
       ];
       $body = [
-
-          'client_id'       => $this->config['api_key'],
+          'client_id'       => $this->config['api_key'],q
           'client_secret'   => $this->config['api_secret'],
           'code'            => Input::get('code')
       ];
@@ -205,5 +209,30 @@ class ShopifyAppAuth extends Model
       ]);
 
       return json_decode(curl_exec($ch))->access_token;
+    }
+
+    /**
+     * Check Shopify hmac is equal to our calculated hmac
+     * @return null
+     */
+    public function verifyHmac(){
+      foreach(Input::get() as $param => $value) {
+        if ($param != 'signature' && $param != 'hmac') {
+          $params[$param] = "{$param}={$value}";
+        }
+      }
+      asort($params);
+
+      $params = implode('&', $params);
+      $hmac = Input::get('hmac');
+      $calculatedHmac = hash_hmac('sha256', $params, $this->config['api_secret']);
+      if($calculatedHmac !== Input::get('hmac')){
+        \App::abort(400, 'HMAC does not match');
+      }
+      if(!\Session::has('access_token') || !\Session::has('shop')){
+        \Session::put('access_token');
+        \Session::put('shop');
+      }
+      return true;
     }
 }

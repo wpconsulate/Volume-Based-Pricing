@@ -17,6 +17,7 @@ class CreateMerchantConfigTable extends Migration
              $table->string('shop_name')->unique();
              $table->string('access_token')->nullable();
              $table->string('nonce')->nullable()->unique();
+             $table->string('install_success')->default(0);
              $table->string('active')->default(1);
              $table->timestamps();
          });

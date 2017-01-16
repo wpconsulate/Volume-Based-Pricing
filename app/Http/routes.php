@@ -14,8 +14,9 @@
 Route::get('/', 'Controller@connect');
 
 // Authentication
-Route::get('/check-install', 'authController@checkInstall');
-Route::get('/callback', 'authController@access_token');
+Route::get('/authorise', 'authController@authorise');
+
+Route::get('/callback', 'authController@callback');
 
 Route::get('/no', function () {
     dd('no');
@@ -26,9 +27,7 @@ Route::get('/yes', function () {
 
 
 //This is where the app actually begins
-Route::get('/index', function () {
-  dd('index');
-});
+Route::get('/index', 'productController@index');
 
 
 
